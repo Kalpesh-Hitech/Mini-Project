@@ -1,0 +1,45 @@
+# --- Python Specific ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+build/
+dist/
+*.egg-info/
+
+# --- Environment Variables (CRITICAL) ---
+# Never commit your database credentials or JWT secrets
+.env
+.env.*
+!.env.example
+
+# --- Database & Migrations ---
+# Ignore local SQLite databases (if used)
+*.sqlite3
+*.db
+
+# Alembic specific
+# We keep versions/ but ignore the compiled cache
+alembic/__pycache__/
+
+# --- Testing & Coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+nosetests.xml
+coverage.xml
+*,cover
+
+# --- IDEs & Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# --- Logs ---
+*.log
+logs/
