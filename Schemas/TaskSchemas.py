@@ -1,5 +1,5 @@
 from Models.Task import PriorityBased, StatusBased
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from uuid import UUID
 from typing import Optional
 
@@ -9,6 +9,13 @@ class TaskBase(BaseModel):
     description: Optional[str] = None
     priority: PriorityBased = PriorityBased.MEDIUM
     status: StatusBased = StatusBased.TODO
+
+    @field_validator("title")
+    def sanitize_title(cls, v: str) -> str:
+        cleaned = v.capitalize()
+        if not cleaned:
+            raise ValueError("Title cannot be empty strings")
+        return cleaned
 
 
 class TaskCreate(TaskBase):
