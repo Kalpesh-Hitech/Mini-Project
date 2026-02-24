@@ -8,7 +8,7 @@ class TeamBase(BaseModel):
 
 
 class TeamCreate(TeamBase):
-    pass
+    create_by_id: Optional[UUID]=None
 
 
 class TeamUpdate(BaseModel):
@@ -17,7 +17,7 @@ class TeamUpdate(BaseModel):
 
 class TeamRead(TeamBase):
     id: UUID
-    created_by_id: UUID
+    create_by_id: UUID
     is_deleted: bool
 
     class Config:

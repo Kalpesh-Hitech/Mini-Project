@@ -19,23 +19,27 @@ class TaskBase(BaseModel):
 
 
 class TaskCreate(TaskBase):
-    team_id: UUID
-    assignee_id: Optional[UUID] = None
+    team_id: Optional[UUID] = None
+    assign_id: Optional[UUID] = None
 
+class TaskUpdateAssign(BaseModel):
+    task_id:UUID
+    team_id:UUID
+    assign_id:UUID
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     priority: Optional[PriorityBased] = None
     status: Optional[StatusBased] = None
-    assignee_id: Optional[UUID] = None
+    assign_id: Optional[UUID] = None
 
 
 class TaskRead(TaskBase):
     id: UUID
     team_id: Optional[UUID]
     created_by_id: UUID
-    assignee_id: Optional[UUID]
+    assign_id: Optional[UUID]
     is_deleted: bool
 
     class Config:

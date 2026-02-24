@@ -20,7 +20,7 @@ class UserTeamsDB(Base):
     team_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("teams.id", ondelete="CASCADE")
     )
-    joined_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    joined_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None))
 
     user: Mapped["UserDB"] = relationship("UserDB", back_populates="userteams")
     team: Mapped["TeamsDB"] = relationship("TeamsDB", back_populates="userteams")

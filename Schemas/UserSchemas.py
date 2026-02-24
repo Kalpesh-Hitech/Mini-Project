@@ -42,3 +42,14 @@ class UserRead(UserBase):
 
     class Config:
         from_attributes = True 
+
+class Login(BaseModel):
+    token:str
+
+class UserLogin(BaseModel):
+    email:str
+    password:str
+
+class UserTeam(BaseModel):
+    user_id:UUID
+    team_id:UUID
