@@ -28,6 +28,12 @@ class UserCreate(UserBase):
             raise ValueError("Password must contain at least one uppercase letter")
         return v
 
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr]=None
+    name: Optional[str]=None
+    password: Optional[str]= Field(..., min_length=8)
+    role: Optional[UserRole] = UserRole.EMPLOYEE
+    is_active:Optional[bool]=None
 
 class UserRead(UserBase):
     id: UUID
@@ -35,4 +41,4 @@ class UserRead(UserBase):
     is_active: bool
 
     class Config:
-        from_attributes = True  # Allows Pydantic to read SQLAlchemy models
+        from_attributes = True 

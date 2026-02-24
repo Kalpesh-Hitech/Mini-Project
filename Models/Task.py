@@ -50,6 +50,6 @@ class TaskDB(Base):
 
     teams: Mapped["TeamsDB"] = relationship("TeamsDB", back_populates="task")
 
-    creator: Mapped["UserDB"] = relationship("UserDB", back_populates="manager_task")
+    creator: Mapped["UserDB"] = relationship("UserDB",foreign_keys="TaskDB.created_by_id", back_populates="manager_task")
 
-    assignee: Mapped["UserDB"] = relationship("UserDB", back_populates="user_task")
+    assignee: Mapped["UserDB"] = relationship("UserDB",foreign_keys="TaskDB.assign_id", back_populates="user_task")

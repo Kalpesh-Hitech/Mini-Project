@@ -31,9 +31,9 @@ class UserDB(Base):
         "UserTeamsDB", back_populates="user"
     )
 
-    manager_task: Mapped["TaskDB"] = relationship("TaskDB", back_populates="creator")
+    manager_task: Mapped["TaskDB"] = relationship("TaskDB",foreign_keys="TaskDB.created_by_id" ,back_populates="creator")
 
-    user_task: Mapped["TaskDB"] = relationship("TaskDB", back_populates="assignee")
+    user_task: Mapped["TaskDB"] = relationship("TaskDB",foreign_keys="TaskDB.assign_id", back_populates="assignee")
 
     activities: Mapped["ActivityLogDB"] = relationship(
         "ActivityLogDB", back_populates="user"
