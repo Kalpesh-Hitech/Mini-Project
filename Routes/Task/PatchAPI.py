@@ -13,14 +13,16 @@ task_patch=APIRouter()
 async def assign_task(taskseed:TaskUpdateAssign,user:UserDB=Depends(RoleChecker(["manager"])),db:AsyncSession=Depends(async_get_db)):
     
     query = select(UserDB).where(
-        UserDB.id==taskseed.assign_id
+        UserDB.id==taskseed.assign_id,
+        UserDB.is_active==True
     )
     result = await db.execute(query)
     existing_record = result.scalars().first()
     if not existing_record:
         raise HTTPException(status_code=404, detail="wrong assign id")
     query = select(TeamsDB).where(
-        TeamsDB.id==taskseed.team_id
+        TeamsDB.id==taskseed.team_id,
+        TeamsDB.is_deleted==False
     )
     result = await db.execute(query)
     existing_record = result.scalars().first()
@@ -32,7 +34,8 @@ async def assign_task(taskseed:TaskUpdateAssign,user:UserDB=Depends(RoleChecker(
             detail="You can only assign employees to your own team",
         )
     query = select(TaskDB).where(
-        TaskDB.id==taskseed.task_id
+        TaskDB.id==taskseed.task_id,
+        TaskDB.is_deleted==False
     )
     result = await db.execute(query)
     existing_record = result.scalars().first()

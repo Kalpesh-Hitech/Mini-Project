@@ -1,16 +1,21 @@
+from datetime import datetime, timedelta
 from hmac import new
+from time import timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from Core.Config.database import async_get_db
+from Models.InviteToken import InviteTokenDB
 from Models.Teams import TeamsDB
 from Models.UserTeams import UserTeamsDB
-from Models.Users import UserDB
+from Models.Users import UserDB, UserRole
+from Schemas.SpecializeSchemas import InviteCreate
 from Schemas.UserSchemas import Login, UserCreate, UserLogin, UserRead, UserTeam
 from Utilies.auth import (
     RoleChecker,
     create_access_token,
+    get_current_user,
     verify_password,
     hash_password,
 )
@@ -46,7 +51,7 @@ async def create_user(
 
 @create_router.post("/login", response_model=Login)
 async def login(userseed: UserLogin, db: AsyncSession = Depends(async_get_db)):
-    result = await db.execute(select(UserDB).where(UserDB.email == userseed.email))
+    result = await db.execute(select(UserDB).where(UserDB.email == userseed.email,UserDB.is_active==True))
     db_user = result.scalars().first()
     if not db_user:
         raise HTTPException(status_code=404, detail="user is not found!! ")
@@ -64,7 +69,7 @@ async def assign_team_touser(
 ):
 
     db_team = await db.execute(
-        select(TeamsDB).where(TeamsDB.id == userteamseed.team_id)
+        select(TeamsDB).where(TeamsDB.id == userteamseed.team_id,TeamsDB.is_deleted==False)
     )
     db_user_result = db_team.scalars().first()
     if not  db_user_result:
@@ -78,7 +83,7 @@ async def assign_team_touser(
             detail="You can only assign employees to your own team",
         )
     db_validate_user = await db.execute(
-        select(UserDB).where(UserDB.id == userteamseed.user_id)
+        select(UserDB).where(UserDB.id == userteamseed.user_id,UserDB.is_active==True)
     )
     db_validate_user_result = db_validate_user.scalars().first()
     if not db_validate_user_result and db_validate_user_result.role != "employee":
@@ -96,3 +101,42 @@ async def assign_team_touser(
     await db.refresh(new_userteam)
 
     return {"this user is assigned to team"}
+
+ 
+ 
+@create_router.post("/create-invite", response_model=InviteCreate)
+async def create_invite_token(
+    data: InviteCreate,
+    db: AsyncSession = Depends(async_get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    if current_user.role != UserRole.MANAGER:
+        raise HTTPException(status_code=403, detail="Only manager can create invite token")
+ 
+    team = await db.get(TeamsDB, data.team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+ 
+    if team.created_by_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only create invite for your own team")
+ 
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+ 
+    invite = InviteTokenDB(
+        team_id=data.team_id,
+        created_by_id=current_user.id,
+        expires_at=expires_at,
+        is_used=False
+    )
+ 
+    db.add(invite)
+    await db.commit()
+    await db.refresh(invite)
+ 
+    return {
+        "token_id": invite.id,
+        "team_id": invite.team_id,
+        "expires_at": invite.expires_at,
+        "is_used":invite.is_used
+    }
+# @create_user.post("/invites/{token}/accept")
