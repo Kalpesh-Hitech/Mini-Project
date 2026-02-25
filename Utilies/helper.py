@@ -19,7 +19,7 @@ conf = ConnectionConfig(
 async def send_task_completion_email(email_to: str, task_name: str):
     html = f"""
     <p>Hello,</p>
-    <p>The task <strong>{task_name}</strong> has been marked as <strong>Completed</strong>.</p>
+    <p><strong>{task_name}</strong></p>
     <p>Check your dashboard for details.</p>
     """
 

@@ -13,10 +13,10 @@ from Routes.Task.PostAPI import task_post
 from Routes.Task.PatchAPI import task_patch
 from Routes.Team.PostAPI import team_post
 from Routes.Team.UpdateAPI import team_patch
-from Routes.Task.UpdateAPI import taskUpdateRouter
 from Routes.Team.GetAPI import get_teamrouter
 from Routes.Team.DeleteAPI import delete_teamrouter
 from Routes.Task.DeleteAPI import delete_taskrouter
+from Routes.User.PatchAPI import userUpdateRouter
 from sqlalchemy.exc import IntegrityError
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 
@@ -32,9 +32,9 @@ app.include_router(team_post)
 app.include_router(task_post)
 app.include_router(task_patch)
 app.include_router(userRouter)
-app.include_router(taskUpdateRouter)
 app.include_router(team_patch)
 app.include_router(get_teamrouter)
 app.include_router(delete_teamrouter)
 app.include_router(delete_taskrouter)
+app.include_router(userUpdateRouter)
 # app.include_router(router)

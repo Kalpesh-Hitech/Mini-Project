@@ -1,17 +1,18 @@
-from datetime import datetime, timedelta
-from hmac import new
-from time import timezone
-
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timedelta, timezone
+import secrets
+import jwt
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from Core.Config.config import settings
 from Core.Config.database import async_get_db
 from Models.InviteToken import InviteTokenDB
 from Models.Teams import TeamsDB
 from Models.UserTeams import UserTeamsDB
-from Models.Users import UserDB, UserRole
-from Schemas.SpecializeSchemas import InviteCreate
+from Models.Users import UserDB
+from Schemas.SpecializeSchemas import InviteCreate, InviteRead
 from Schemas.UserSchemas import Login, UserCreate, UserLogin, UserRead, UserTeam
+import uuid
 from Utilies.auth import (
     RoleChecker,
     create_access_token,
@@ -19,6 +20,7 @@ from Utilies.auth import (
     verify_password,
     hash_password,
 )
+from Utilies.helper import send_task_completion_email
 
 create_router = APIRouter()
 
@@ -51,7 +53,9 @@ async def create_user(
 
 @create_router.post("/login", response_model=Login)
 async def login(userseed: UserLogin, db: AsyncSession = Depends(async_get_db)):
-    result = await db.execute(select(UserDB).where(UserDB.email == userseed.email,UserDB.is_active==True))
+    result = await db.execute(
+        select(UserDB).where(UserDB.email == userseed.email, UserDB.is_active == True)
+    )
     db_user = result.scalars().first()
     if not db_user:
         raise HTTPException(status_code=404, detail="user is not found!! ")
@@ -69,10 +73,12 @@ async def assign_team_touser(
 ):
 
     db_team = await db.execute(
-        select(TeamsDB).where(TeamsDB.id == userteamseed.team_id,TeamsDB.is_deleted==False)
+        select(TeamsDB).where(
+            TeamsDB.id == userteamseed.team_id, TeamsDB.is_deleted == False
+        )
     )
     db_user_result = db_team.scalars().first()
-    if not  db_user_result:
+    if not db_user_result:
         raise HTTPException(
             status_code=404,
             detail="ye team id galat hai!!",
@@ -83,13 +89,16 @@ async def assign_team_touser(
             detail="You can only assign employees to your own team",
         )
     db_validate_user = await db.execute(
-        select(UserDB).where(UserDB.id == userteamseed.user_id,UserDB.is_active==True)
+        select(UserDB).where(
+            UserDB.id == userteamseed.user_id, UserDB.is_active == True
+        )
     )
     db_validate_user_result = db_validate_user.scalars().first()
     if not db_validate_user_result and db_validate_user_result.role != "employee":
         raise HTTPException(status_code=401, detail="user is not validate!!")
     query = select(UserTeamsDB).where(
-        UserTeamsDB.user_id == userteamseed.user_id, UserTeamsDB.team_id == userteamseed.team_id
+        UserTeamsDB.user_id == userteamseed.user_id,
+        UserTeamsDB.team_id == userteamseed.team_id,
     )
     result = await db.execute(query)
     existing_record = result.scalars().first()
@@ -102,41 +111,96 @@ async def assign_team_touser(
 
     return {"this user is assigned to team"}
 
- 
- 
-@create_router.post("/create-invite", response_model=InviteCreate)
+
+@create_router.post("/create-invite", response_model=InviteRead)
 async def create_invite_token(
+    background_task: BackgroundTasks,
     data: InviteCreate,
     db: AsyncSession = Depends(async_get_db),
-    current_user: UserDB = Depends(get_current_user)
+    current_user: UserDB = Depends(RoleChecker(["manager"])),
 ):
-    if current_user.role != UserRole.MANAGER:
-        raise HTTPException(status_code=403, detail="Only manager can create invite token")
- 
+
     team = await db.get(TeamsDB, data.team_id)
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
- 
-    if team.created_by_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only create invite for your own team")
- 
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
- 
+    if team.create_by_id != current_user.id:
+        raise HTTPException(
+            status_code=403, detail="You can only create invite for your own team"
+        )
+    query = select(UserDB).where(
+        UserDB.email == data.user_email, UserDB.role == "employee"
+    )
+    result = await db.execute(query)
+    db_user = result.scalars().first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="email not found")
+    query = select(UserTeamsDB).where(
+        UserTeamsDB.user_id == db_user.id, UserTeamsDB.team_id == data.team_id
+    )
+    result = await db.execute(query)
+    existing_membership = result.scalars().first()
+    if existing_membership:
+        raise HTTPException(
+            status_code=400, detail="User is already a member of this team"
+        )
+    payload = {
+        "sub": data.user_email,
+        "team_id": str(data.team_id)
+    }
+
+    new_token_string= jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     invite = InviteTokenDB(
         team_id=data.team_id,
-        created_by_id=current_user.id,
-        expires_at=expires_at,
-        is_used=False
+        create_by_id=current_user.id,
+        token=new_token_string,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
     )
- 
+
     db.add(invite)
     await db.commit()
     await db.refresh(invite)
- 
+    background_task.add_task(
+        send_task_completion_email, data.user_email, new_token_string
+    )
+    return invite
+
+@create_router.get("/verify-invite/{token}")
+async def verify_invite_token(token: str, db: AsyncSession = Depends(async_get_db)):
+    query = select(InviteTokenDB).where(InviteTokenDB.token == token)
+    result = await db.execute(query)
+    invite = result.scalar_one_or_none()
+
+    if not invite or invite.is_used:
+        raise HTTPException(status_code=400, detail="Invalid or used invite")
+
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        token_team_id = uuid.UUID(payload.get("team_id")) 
+    except (jwt.PyJWTError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid token data")
+
+    user_query = select(UserDB).where(UserDB.email == email)
+    user_result = await db.execute(user_query)
+    db_user = user_result.scalar_one_or_none()
+
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_id_to_add = db_user.id 
+
+    new_membership = UserTeamsDB(
+        user_id=user_id_to_add,
+        team_id=token_team_id
+    )
+    
+    invite.is_used = True
+    db.add(new_membership)
+    
+    await db.commit()
+
     return {
-        "token_id": invite.id,
-        "team_id": invite.team_id,
-        "expires_at": invite.expires_at,
-        "is_used":invite.is_used
+        "status": "success",
+        "user_id": user_id_to_add,
+        "team_id": token_team_id
     }
-# @create_user.post("/invites/{token}/accept")

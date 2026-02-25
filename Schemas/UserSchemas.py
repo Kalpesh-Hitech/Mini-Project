@@ -35,6 +35,14 @@ class UserUpdate(BaseModel):
     role: Optional[UserRole] = UserRole.EMPLOYEE
     is_active:Optional[bool]=None
 
+class UpdateUser(BaseModel):
+    user_id:UUID
+    name: Optional[str]=None
+    email: Optional[EmailStr]=None
+    password: Optional[str] = Field(None, min_length=8)
+    role: Optional[UserRole]=None
+    is_active: Optional[bool]=None
+
 class UserRead(UserBase):
     id: UUID
     role: UserRole
